@@ -234,11 +234,20 @@ MiguMusic.exe --no-sandbox
 
 ## 获取与运行
 
+### 直接下载（推荐，免安装）
+
+**[⬇ Mg-pc-1.0.0-win-x64.zip (110.48 MB)](https://github.com/SSenjiahui/Mg-pc/releases/latest)**
+
+解压后双击 `Mg-pc-1.0.0-win-x64\MiguMusic.exe` 即可，不需要装 Node.js。
+首次启动 SmartScreen 会提示「未知发布者」（未签名），点「更多信息 → 仍要运行」。
+
+### 从源码跑
+
 本仓库**不含可执行程序**（`app/` 打包产物 259MB 与 `native/echo-ffmpeg-player.node` 11MB 均被 `.gitignore` 排除）。
 克隆后按「开发」一节跑起来：
 
 ```bat
-git clone git@ssh.github.com:SSenjiahui/Mg-pc.git
+git clone https://github.com/SSenjiahui/Mg-pc.git
 cd Mg-pc
 npm install
 npm start
