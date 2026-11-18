@@ -1,0 +1,34 @@
+# 构建产物（259MB，不入仓）
+app/
+dist/
+app.prev/
+
+# 预编译原生内核（11.3MB 第三方二进制，版权归其原作者；仓库不收录）
+native/*.node
+
+# 依赖
+node_modules/
+
+# 过程取证（截图/探针/日志）
+_study/
+_anim/
+_*.js
+_*.png
+_*.bat
+_*.json
+*.log
+*.err
+*.b64
+
+# 运行期产生的目录
+NVIDIA Corporation/
+
+# 本机状态（gh device-id 等）
+.local/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

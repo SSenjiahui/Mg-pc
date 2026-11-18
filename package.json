@@ -1,0 +1,18 @@
+{
+  "name": "migu-music-desktop",
+  "productName": "咪咕音乐",
+  "version": "1.0.0",
+  "description": "咪咕音乐 桌面版",
+  "main": "src/main/main.js",
+  "author": "local",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "31.7.7"
+  },
+  "allowScripts": {
+    "electron": true
+  }
+}

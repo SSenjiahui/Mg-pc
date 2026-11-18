@@ -1,0 +1,165 @@
+/* ─────────────────────────────────────────────────────────────
+   lattice-lyrics.css —— 沉浸式浮动歌词（复刻 Folia LatticeLyrics 观感）
+   动画全部由 JS 弹簧驱动（行弹簧 + 逐字弹簧），CSS 只负责
+   结构与静态层次；这里不写 keyframes，避免与 rAF 抢控制权。
+   ───────────────────────────────────────────────────────────── */
+
+.lx-stage{
+  position:fixed; left:0; right:0; top:52px; bottom:88px; z-index:44;
+  overflow:hidden; opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .30s cubic-bezier(.4,0,.2,1), visibility .30s;
+  background:#08080d;
+  contain:layout paint style;
+}
+.lx-stage.open{opacity:1; visibility:visible; pointer-events:auto}
+
+/* ── 背景：模糊封面 + 色洗 ── */
+.lx-bg{
+  position:absolute; inset:-12%; background-size:cover; background-position:center;
+  filter:blur(54px) saturate(1.35) brightness(.52);
+  transform:scale(1.08);
+  transition:background-image .55s ease, opacity .55s ease;
+  opacity:0;
+}
+.lx-bg.show{opacity:1}
+.lx-bg-wash{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(58% 52% at 22% 28%, rgba(122,92,255,.30), transparent 62%),
+    radial-gradient(52% 46% at 82% 74%, rgba(255,77,132,.26), transparent 64%),
+    linear-gradient(180deg, rgba(8,8,13,.62), rgba(8,8,13,.34) 42%, rgba(8,8,13,.82));
+}
+.lx-vignette{
+  position:absolute; inset:0;
+  background:radial-gradient(112% 88% at 50% 46%, transparent 38%, rgba(0,0,0,.62) 100%);
+}
+/* 中央柔光，随当前行呼吸 */
+.lx-glow{
+  position:absolute; left:50%; top:50%; width:min(760px,72vw); height:260px;
+  transform:translate(-50%,-50%);
+  background:radial-gradient(50% 50% at 50% 50%, rgba(255,77,132,.16), transparent 70%);
+  filter:blur(28px); opacity:.85; pointer-events:none;
+  transition:opacity .45s linear;
+}
+
+/* ── 3D 歌词栈 ── 
+   transform / opacity 由 tick() 每帧写入（入场缩放弹簧），
+   所以这里不能有 transition —— 会和 rAF 打架产生拖影。 */
+.lx-lines{
+  position:absolute; inset:0;
+  perspective:900px; perspective-origin:50% 50%;
+  transform-style:preserve-3d;
+  will-change:transform, opacity;
+  opacity:0;
+}
+.lx-line{
+  position:absolute; left:4%; right:4%; top:50%;
+  text-align:center; white-space:nowrap;
+  transform-origin:50% 50%;
+  will-change:transform, opacity, filter;
+  backface-visibility:hidden;
+  cursor:pointer;
+}
+/* 上下渐隐遮罩（独立层，避免破坏 preserve-3d） */
+.lx-fade{position:absolute;left:0;right:0;height:120px;pointer-events:none;z-index:2}
+.lx-fade.top{top:56px;background:linear-gradient(180deg,#08080d 0%,rgba(8,8,13,.72) 38%,transparent 100%)}
+.lx-fade.bot{bottom:0;height:140px;background:linear-gradient(0deg,#08080d 0%,rgba(8,8,13,.72) 38%,transparent 100%)}
+
+.lx-inner{
+  display:inline-block; max-width:100%;
+  will-change:transform;
+}
+.lx-txt{
+  display:inline-block; font-weight:600; letter-spacing:.6px;
+  line-height:1.24; white-space:nowrap;
+  color:rgba(233,233,242,.94);
+}
+
+/* ── 逐字单元 ──
+   transform / opacity / filter 由逐字弹簧逐帧写入。
+   这里不设 transition：弹簧本身已经是连续插值，
+   再叠 CSS 过渡会变成双重缓动、发飘。 */
+.lx-g{
+  display:inline-block; white-space:pre;
+  transform-origin:50% 80%;
+  will-change:transform, opacity, filter;
+}
+
+/* 当前行：整体提亮 + 外发光（字级颜色由 .lit 单独控制） */
+.lx-line.active .lx-txt{
+  color:#fff;
+  letter-spacing:2.6px;
+  text-shadow:0 0 26px rgba(255,255,255,.30), 0 0 68px rgba(255,77,132,.24);
+}
+
+/* ── 逐字点亮 ──
+   颜色只在这里做过渡（.12s），位置/缩放/模糊交给弹簧，
+   所以 transition 精确限定在 color 与 text-shadow 两项。 */
+.lx-line.active .lx-g{
+  color:rgba(233,233,242,.26);
+  transition:color .12s linear, text-shadow .22s linear;
+}
+.lx-line.active .lx-g.lit{
+  color:#fff;
+  text-shadow:
+    0 0 16px rgba(255,255,255,.55),
+    0 0 34px rgba(255,77,132,.50),
+    0 0 72px rgba(122,92,255,.34);
+  transition:color .10s linear, text-shadow .30s cubic-bezier(.2,.7,.3,1);
+}
+/* 已解锁（下一个待唱）的字：白度略低，形成"正在推进"的锋面 */
+.lx-line.active .lx-g.lit.edge{
+  color:#fff;
+  text-shadow:
+    0 0 24px rgba(255,255,255,.80),
+    0 0 52px rgba(255,77,132,.70),
+    0 0 96px rgba(122,92,255,.42);
+}
+
+/* 已唱过的行稍作去饱和，拉开与未来行的层次 */
+.lx-line[data-dir="-1"] .lx-txt{ filter:saturate(.55)}
+
+/* ── 顶部曲目信息 ── */
+.lx-head{
+  position:absolute; left:0; right:0; top:0; height:64px;
+  display:flex; align-items:center; gap:14px; padding:14px 20px 0;
+  z-index:3; pointer-events:none;
+}
+.lx-track{min-width:0; flex:1; display:flex; flex-direction:column; gap:2px}
+.lx-track strong{
+  font-size:14px; font-weight:600; color:#fff; letter-spacing:.3px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  text-shadow:0 2px 12px rgba(0,0,0,.6);
+}
+.lx-track small{font-size:11.5px; color:rgba(233,233,242,.55);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lx-actions{display:flex; gap:4px; pointer-events:auto; flex:0 0 auto}
+.lx-actions .icon-btn{
+  background:rgba(255,255,255,.06); backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.06);
+}
+.lx-actions .icon-btn:hover{background:rgba(255,255,255,.14)}
+
+/* ── 底部细进度条 ── */
+.lx-foot{
+  position:absolute; left:0; right:0; bottom:0; padding:0 20px 10px; z-index:3;
+  pointer-events:none;
+}
+.lx-progress{height:2px; border-radius:2px; background:rgba(255,255,255,.10); overflow:hidden}
+.lx-progress-fill{
+  height:100%; width:0; border-radius:2px;
+  background:linear-gradient(90deg,var(--accent2,#7a5cff),var(--accent,#ff4d84));
+  transition:width .12s linear;
+}
+
+/* ── 空态 ── */
+.lx-empty{
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  text-align:center; color:rgba(233,233,242,.42); font-size:13px; letter-spacing:.5px;
+}
+.lx-empty.hide{display:none}
+
+@media (prefers-reduced-motion:reduce){
+  .lx-stage{transition:none}
+  .lx-line.active .lx-g{transition:color .01s linear}
+}
