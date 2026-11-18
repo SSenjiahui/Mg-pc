@@ -1,5 +1,10 @@
 # 咪咕音乐 桌面版
 
+[![Release](https://img.shields.io/github/v/release/SSenjiahui/Mg-pc?style=flat-square&color=fd5c47)](https://github.com/SSenjiahui/Mg-pc/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-0f0f16?style=flat-square)](https://github.com/SSenjiahui/Mg-pc/releases/latest)
+[![Electron](https://img.shields.io/badge/electron-31.7.7-47848f?style=flat-square)](https://www.electronjs.org/)
+[![License](https://img.shields.io/badge/license-MIT-6a48ff?style=flat-square)](LICENSE)
+
 把咪咕音乐（手机端的在线音乐服务）搬到 Windows 桌面上的第三方 Electron 客户端。
 自绘标题栏、深色主题、无边框窗口，直接对接咪咕音乐的 Web 接口，界面与交互为自建实现。
 
