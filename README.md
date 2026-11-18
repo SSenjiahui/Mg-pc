@@ -232,6 +232,21 @@ MiguMusic.exe --no-sandbox
 [lx:done]
 ```
 
+## 获取与运行
+
+本仓库**不含可执行程序**（`app/` 打包产物 259MB 与 `native/echo-ffmpeg-player.node` 11MB 均被 `.gitignore` 排除）。
+克隆后按「开发」一节跑起来：
+
+```bat
+git clone git@ssh.github.com:SSenjiahui/Mg-pc.git
+cd Mg-pc
+npm install
+npm start
+```
+
+想把播放内核补齐，把 `echo-ffmpeg-player.node` 放进 `native/`；没有它应用仍可启动、
+界面与歌词层正常，点播放会提示「原生内核不可用」。
+
 ## 已知限制
 
 - VIP / 版权受限曲目拿不到 url，只能试听或无声音——这是账号权限问题，客户端只做明确提示。
