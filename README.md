@@ -10,6 +10,8 @@
 
 ![主页](docs/screenshots/home.png)
 
+<sub>上图摘自 Release 包实际运行窗口（1500×950，2026-11-19 验证）</sub>
+
 ![新歌与榜单](docs/screenshots/home-rows.png)
 
 ![沉浸式歌词](docs/screenshots/lyrics.png)
