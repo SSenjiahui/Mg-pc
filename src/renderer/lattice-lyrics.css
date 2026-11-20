@@ -5,10 +5,13 @@
    ───────────────────────────────────────────────────────────── */
 
 .lx-stage{
-  position:fixed; left:0; right:0; top:52px; bottom:88px; z-index:44;
+  position:fixed; inset:0; z-index:44; padding:0 6vw;
   overflow:hidden; opacity:0; visibility:hidden; pointer-events:none;
-  transition:opacity .30s cubic-bezier(.4,0,.2,1), visibility .30s;
-  background:#08080d;
+  transition:opacity .34s cubic-bezier(.32,.72,0,1), visibility .34s;
+  /* 全屏歌词层：深色玻璃底 + 自身模糊，才能盖住后面的色斑又不显死板 */
+  background:rgba(10,10,16,.82);
+  -webkit-backdrop-filter:blur(40px) saturate(140%);
+  backdrop-filter:blur(40px) saturate(140%);
   contain:layout paint style;
 }
 .lx-stage.open{opacity:1; visibility:visible; pointer-events:auto}
@@ -25,9 +28,9 @@
 .lx-bg-wash{
   position:absolute; inset:0;
   background:
-    radial-gradient(58% 52% at 22% 28%, rgba(122,92,255,.30), transparent 62%),
-    radial-gradient(52% 46% at 82% 74%, rgba(255,77,132,.26), transparent 64%),
-    linear-gradient(180deg, rgba(8,8,13,.62), rgba(8,8,13,.34) 42%, rgba(8,8,13,.82));
+    radial-gradient(58% 52% at 22% 26%, rgba(139,124,255,.26), transparent 64%),
+    radial-gradient(52% 46% at 82% 76%, rgba(79,209,255,.20), transparent 66%),
+    linear-gradient(180deg, rgba(10,10,16,.55), rgba(10,10,16,.28) 44%, rgba(10,10,16,.86));
 }
 .lx-vignette{
   position:absolute; inset:0;
@@ -37,7 +40,7 @@
 .lx-glow{
   position:absolute; left:50%; top:50%; width:min(760px,72vw); height:260px;
   transform:translate(-50%,-50%);
-  background:radial-gradient(50% 50% at 50% 50%, rgba(255,77,132,.16), transparent 70%);
+  background:radial-gradient(50% 50% at 50% 50%, rgba(139,124,255,.20), transparent 70%);
   filter:blur(28px); opacity:.85; pointer-events:none;
   transition:opacity .45s linear;
 }
@@ -62,8 +65,8 @@
 }
 /* 上下渐隐遮罩（独立层，避免破坏 preserve-3d） */
 .lx-fade{position:absolute;left:0;right:0;height:120px;pointer-events:none;z-index:2}
-.lx-fade.top{top:56px;background:linear-gradient(180deg,#08080d 0%,rgba(8,8,13,.72) 38%,transparent 100%)}
-.lx-fade.bot{bottom:0;height:140px;background:linear-gradient(0deg,#08080d 0%,rgba(8,8,13,.72) 38%,transparent 100%)}
+.lx-fade.top{top:0;height:132px;background:linear-gradient(180deg,rgba(10,10,16,.92) 0%,rgba(10,10,16,.5) 46%,transparent 100%)}
+.lx-fade.bot{bottom:0;height:180px;background:linear-gradient(0deg,rgba(10,10,16,.94) 0%,rgba(10,10,16,.5) 46%,transparent 100%)}
 
 .lx-inner{
   display:inline-block; max-width:100%;
@@ -89,7 +92,7 @@
 .lx-line.active .lx-txt{
   color:#fff;
   letter-spacing:2.6px;
-  text-shadow:0 0 26px rgba(255,255,255,.30), 0 0 68px rgba(255,77,132,.24);
+  text-shadow:0 0 26px rgba(255,255,255,.28), 0 0 68px rgba(139,124,255,.26);
 }
 
 /* ── 逐字点亮 ──
@@ -103,17 +106,17 @@
   color:#fff;
   text-shadow:
     0 0 16px rgba(255,255,255,.55),
-    0 0 34px rgba(255,77,132,.50),
-    0 0 72px rgba(122,92,255,.34);
+    0 0 34px rgba(167,155,255,.52),
+    0 0 72px rgba(79,209,255,.34);
   transition:color .10s linear, text-shadow .30s cubic-bezier(.2,.7,.3,1);
 }
 /* 已解锁（下一个待唱）的字：白度略低，形成"正在推进"的锋面 */
 .lx-line.active .lx-g.lit.edge{
   color:#fff;
   text-shadow:
-    0 0 24px rgba(255,255,255,.80),
-    0 0 52px rgba(255,77,132,.70),
-    0 0 96px rgba(122,92,255,.42);
+    0 0 24px rgba(255,255,255,.82),
+    0 0 52px rgba(167,155,255,.72),
+    0 0 96px rgba(79,209,255,.44);
 }
 
 /* 已唱过的行稍作去饱和，拉开与未来行的层次 */
@@ -121,8 +124,8 @@
 
 /* ── 顶部曲目信息 ── */
 .lx-head{
-  position:absolute; left:0; right:0; top:0; height:64px;
-  display:flex; align-items:center; gap:14px; padding:14px 20px 0;
+  position:absolute; left:0; right:0; top:0; height:78px;
+  display:flex; align-items:center; gap:14px; padding:20px 34px 0;
   z-index:3; pointer-events:none;
 }
 .lx-track{min-width:0; flex:1; display:flex; flex-direction:column; gap:2px}
@@ -142,13 +145,13 @@
 
 /* ── 底部细进度条 ── */
 .lx-foot{
-  position:absolute; left:0; right:0; bottom:0; padding:0 20px 10px; z-index:3;
+  position:absolute; left:0; right:0; bottom:0; padding:0 34px 22px; z-index:3;
   pointer-events:none;
 }
 .lx-progress{height:2px; border-radius:2px; background:rgba(255,255,255,.10); overflow:hidden}
 .lx-progress-fill{
   height:100%; width:0; border-radius:2px;
-  background:linear-gradient(90deg,var(--accent2,#7a5cff),var(--accent,#ff4d84));
+  background:linear-gradient(90deg,#8b7cff,#4fd1ff);
   transition:width .12s linear;
 }
 
@@ -163,3 +166,9 @@
   .lx-stage{transition:none}
   .lx-line.active .lx-g{transition:color .01s linear}
 }
+
+
+/* ── 全屏歌词文字加粗与行距微调 ── */
+.lx-line{font-weight:600}
+.lx-line .lx-g{letter-spacing:.01em}
+.lx-empty{color:rgba(247,247,251,.4)}

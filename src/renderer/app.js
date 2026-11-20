@@ -1796,6 +1796,31 @@ function paintSpeed() {
   if (close) close.onclick = () => { panel.classList.remove('open'); btn.classList.remove('active'); };
 })();
 
+/* ══ 液态玻璃视差：指针移动时面板做极轻微反向位移 ══ */
+(function glassParallax() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const panels = Array.from(document.querySelectorAll('.sidebar, .panel'));
+  if (!panels.length) return;
+  let raf = 0, tx = 0, ty = 0, cx = 0, cy = 0;
+  function tick() {
+    cx += (tx - cx) * 0.12;
+    cy += (ty - cy) * 0.12;
+    panels.forEach((p, i) => {
+      const k = 1 + i * 0.35;   // 每层系数不同，产生层次
+      p.style.setProperty('--px', (cx * k).toFixed(2) + 'px');
+      p.style.setProperty('--py', (cy * k).toFixed(2) + 'px');
+    });
+    if (Math.abs(tx - cx) > 0.01 || Math.abs(ty - cy) > 0.01) raf = requestAnimationFrame(tick);
+    else raf = 0;
+  }
+  window.addEventListener('pointermove', (e) => {
+    const w = window.innerWidth, h = window.innerHeight;
+    tx = ((e.clientX / w) - 0.5) * 12;   // ±6px
+    ty = ((e.clientY / h) - 0.5) * 9;
+    if (!raf) raf = requestAnimationFrame(tick);
+  }, { passive: true });
+})();
+
 /* 键盘 */
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;

@@ -14,6 +14,8 @@
 
 ![新歌与榜单](docs/screenshots/home-rows.png)
 
+![声音面板](docs/screenshots/sound.png)
+
 ![沉浸式歌词](docs/screenshots/lyrics.png)
 
 ## 特性
@@ -108,37 +110,37 @@ key 表按请求类型分组，常量定义在 `src/main/migu-api.js`（逆向�
 
 相关文件：`src/renderer/lattice-lyrics.js`、`lattice-lyrics.css`、`errors.js`。
 
-## 界面外壳（2026-11-20 重构）
+## 界面：液态玻璃（Liquid Glass）
 
-整体骨架参考 EchoMusic 2.3.2：**不是"通栏底色 + 分区"，而是三块浮起的面板**。
+不是"深色 + 卡片"，而是三层材质叠出来的液态玻璃：
 
-```
-#app { grid-template-columns: 236px 1fr; gap: 10px; padding: 8px; }
-  ├─ aside.sidebar      → 与窗口同色 #171718，10px 圆角
-  └─ .workspace         → grid-template-rows: 1fr 88px
-       ├─ .main-panel   → #29292b，10px 圆角，内含 .topbar + #view
-       └─ .player-panel → #29292b，10px 圆角，三栏 1fr / 1.25fr / 0.9fr
-```
-
-取色与尺寸直接对应 EchoMusic 的 design tokens（从其 `style-*.css` 提取）：
-
-| 本项目 | EchoMusic 变量 | 值 |
+| 层 | 作用 | 实现 |
 | --- | --- | --- |
-| `--window-bg` | `--surface-sidebar-base` | `#171718` |
-| `--panel-main` | `--surface-main-base` | `#29292b` |
-| `--panel-card` | `--surface-card-base` | `#343436` |
-| `--panel-border` | `--border-light` | `#444446` |
-| `--brand` | `--color-primary` | `#00cc65` |
-| `--tone-secondary` | `--text-secondary` | `#bcbcbc` |
-| `--r-shell` | `--radius-shell` | `10px` |
-| `--r-control` | `--radius-control` | `6px` |
-| `--gap-panel` / `--edge-inset` | `--layout-panel-gap` / `--layout-edge-inset` | `10px` / `8px` |
+| `.glass-field` | 光场——唯一"实"的东西 | 四团 52/46/44/34vw 色斑（紫 / 青 / 洋红 / 薄荷），`blur(64px) saturate(112%)`，28–46s 循环漂移 |
+| `.panel` / `.sidebar` | 玻璃板 | `backdrop-filter: blur(46px) saturate(142%) brightness(1.06)` + 深色 34% tint + 顶底双向 inset 阴影做厚度 |
+| `.glass-specular` | 棱边高光 | 左上角 `radial-gradient` 白 + 顶部 12% 渐隐，`mix-blend-mode: screen` |
 
-窗口改为 `transparent: true` + `roundedCorners: false`，圆角由 CSS 面板自己画，
-否则系统会在无边框透明窗口上再叠一层圆角导致双层。
+配色刻意避开 EchoMusic 的灰 + 绿，改用：
 
-原本的洋红主色整体换成 Echo 的绿 `#00cc65`；首页内部的 Folia 竖排 rail 已移除
-（侧栏已承担导航），首页只保留内容层。
+```
+--spec-1 #8b7cff   冷紫（主）
+--spec-2 #4fd1ff   冰青（次）
+--spec-3 #ff7ac6   洋红（点缀）
+--glass-base #0b0b12
+--r-glass 22px
+```
+
+动效：
+- 色斑永不停歇地漂移，颜色组合不会重复
+- 指针移动时面板按层做 ±6px 反向位移（`--px`/`--py` 变量 + rAF 缓动）
+- `prefers-reduced-motion` 下全部静止
+
+首页卡片不是实心方块，而是**半透明玻璃 + 自身 backdrop-filter 再磨一次**，
+底下的色斑会透上来。榜单卡、歌单卡、专辑卡、详情页封面统一走这套。
+
+全屏歌词层同步改成玻璃：`inset: 0` 铺满 + `rgba(10,10,16,.82)` 底 + `blur(40px)`，
+渐隐边缘改用紫/青体系。
+
 
 ## 首页（发现音乐）
 
@@ -200,7 +202,9 @@ function isAdItem(it) {
       ├─ style.css           # 设计令牌与全部组件样式
       ├─ errors.js           # 外置全局错误收集（配合 CSP script-src 'self'）
       ├─ lattice-lyrics.js   # 沉浸式歌词舞台
-      └─ lattice-lyrics.css
+      ├─ lattice-lyrics.css
+      ├─ taskbar-lyric.html  # 任务栏歌词小窗
+      └─ taskbar-lyric.js
 ```
 
 ## 开发

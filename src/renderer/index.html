@@ -10,12 +10,18 @@
 </head>
 <body>
 <div id="app">
+  <!-- 玻璃背后的光场：液态玻璃必须有流动的色彩才有折射感 -->
+  <div class="glass-field" aria-hidden="true">
+    <i class="gf gf-1"></i><i class="gf gf-2"></i><i class="gf gf-3"></i><i class="gf gf-4"></i>
+    <div class="gf-noise"></div>
+  </div>
 
   <!-- 窗口层：底色 + 拖拽条 -->
   <div class="win-drag"></div>
 
   <!-- ══ 侧栏面板 ══ -->
   <aside class="sidebar">
+    <div class="glass-specular" aria-hidden="true"></div>
     <div class="sb-head">
       <div class="sb-brand">
         <svg viewBox="0 0 24 24" class="sb-logo"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>
@@ -103,6 +109,7 @@
   <!-- ══ 右区：主面板 + 播放面板 ══ -->
   <div class="workspace">
     <section class="panel main-panel">
+      <div class="glass-specular" aria-hidden="true"></div>
       <header class="topbar">
         <div class="tb-nav">
           <button class="icon-btn" id="btnHome" title="首页">
@@ -125,6 +132,7 @@
     </section>
 
     <section class="panel player-panel">
+      <div class="glass-specular" aria-hidden="true"></div>
       <div class="pl-left">
         <div class="pl-cover" id="plCover">
           <svg viewBox="0 0 24 24" class="pl-cover-ph"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>
