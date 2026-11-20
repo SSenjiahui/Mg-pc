@@ -1164,3 +1164,65 @@ body{color:var(--tone-main);}
 /* 分区标题：绿色发丝线 */
 .view.is-home .hs-line{background:rgba(255,255,255,.07)}
 .view.is-home .hs-more:hover{color:var(--brand)}
+
+
+/* ─────────── 声音面板（均衡器 / 音效 / 变速 / 输出设备） ─────────── */
+.sound-panel{
+  position:fixed;right:0;top:0;bottom:0;width:360px;max-width:86vw;
+  background:#202022;border-left:1px solid rgba(255,255,255,.07);
+  box-shadow:-16px 0 48px rgba(0,0,0,.5);
+  transform:translateX(100%);transition:transform var(--dur-panel) var(--ease-enter);
+  z-index:60;display:flex;flex-direction:column;
+}
+.sound-panel.open{transform:translateX(0)}
+.snd-body{flex:1;overflow:auto;padding:6px 16px 20px}
+.snd-body::-webkit-scrollbar{width:8px}
+.snd-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+
+.snd-sec{padding:16px 0;border-bottom:1px solid rgba(255,255,255,.055)}
+.snd-sec:last-child{border-bottom:0}
+.snd-title{font-size:12px;font-weight:600;color:var(--tone-secondary);letter-spacing:.04em;margin-bottom:12px;display:block}
+.snd-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.snd-title-row .snd-title{margin-bottom:0}
+.snd-val{font-size:12px;color:var(--brand);font-variant-numeric:tabular-nums}
+.snd-hint{font-size:10.5px;color:var(--tone-quaternary);margin-top:8px}
+
+/* 预设胶囊 */
+.snd-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.eq-chip{
+  padding:5px 11px;border-radius:14px;font-size:11.5px;
+  background:rgba(255,255,255,.05);color:var(--tone-secondary);
+  border:1px solid transparent;cursor:pointer;
+  transition:background .16s,color .16s,border-color .16s;
+}
+.eq-chip:hover{background:rgba(255,255,255,.09);color:#fff}
+.eq-chip.is-on{background:var(--brand-soft);color:var(--brand);border-color:rgba(0,204,101,.35)}
+
+/* 垂直均衡器推子 */
+.snd-eq{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:132px;padding:0 2px}
+.eq-band{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1;min-width:0}
+.eq-band .eq-track{
+  position:relative;width:100%;height:96px;border-radius:3px;
+  background:rgba(255,255,255,.07);cursor:pointer;overflow:hidden;
+}
+.eq-band .eq-fill{
+  position:absolute;left:0;right:0;bottom:50%;background:var(--brand);
+  transition:height .12s linear,bottom .12s linear;
+}
+.eq-band .eq-mid{position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.16)}
+.eq-band .eq-lbl{font-size:9.5px;color:var(--tone-quaternary);font-variant-numeric:tabular-nums}
+.eq-band .eq-db{font-size:9px;color:var(--tone-quaternary)}
+
+/* 音效胶囊 */
+.snd-chips{display:flex;flex-wrap:wrap;gap:6px}
+
+/* 速度条 */
+.snd-slider{width:100%}
+
+/* 设备下拉 */
+.snd-select{
+  width:100%;font-size:12px;color:var(--tone-main);
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);
+  border-radius:var(--r-control);padding:8px 10px;outline:0;cursor:pointer;
+}
+.snd-select option{background:#29292b;color:#fff}

@@ -53,6 +53,42 @@ contextBridge.exposeInMainWorld('migu', {
     onEvent: (cb) => ipcRenderer.on('player:event', (e, d) => cb(d)),
   },
 
+
+  /* ── 内核扩展（频谱 / 均衡器 / 音效 / 变速 / 音频图） ── */
+  spectrum: (opts) => invoke('player:spectrum', opts),
+  spectrumSnapshot: () => invoke('player:spectrumSnapshot'),
+  spectrumStatus: () => invoke('player:spectrumStatus'),
+  eq: (bands) => invoke('player:eq', bands),
+  effect: (name, params) => invoke('player:effect', name, params),
+  fade: (vol, sec) => invoke('player:fade', vol, sec),
+  speed: (rate) => invoke('player:speed', rate),
+  gain: (g) => invoke('player:gain', g),
+  graph: () => invoke('player:graph'),
+  graphPlan: (plan) => invoke('player:graphPlan', plan),
+  devices: () => invoke('player:devices'),
+  setDevice: (id) => invoke('player:setDevice', id),
+
+  /* ── 系统集成（媒体卡片 / 任务栏歌词 / 本地库） ── */
+  sys: {
+    available: () => invoke('sys:available'),
+    media: (meta) => invoke('sys:media', meta),
+    mediaState: (st) => invoke('sys:mediaState', st),
+    mediaTimeline: (tl) => invoke('sys:mediaTimeline', tl),
+    taskbarLyric: (arg) => invoke('sys:taskbarLyric', arg),
+    kvGet: (k) => invoke('sys:kvGet', k),
+    kvSet: (k, v) => invoke('sys:kvSet', k, v),
+    historyClear: () => invoke('sys:historyClear'),
+    queueGet: () => invoke('sys:queueGet'),
+    onMediaKey: (cb) => {
+      ipcRenderer.on('media:play', () => cb('play'));
+      ipcRenderer.on('media:pause', () => cb('pause'));
+      ipcRenderer.on('media:toggle', () => cb('toggle'));
+      ipcRenderer.on('media:next', () => cb('next'));
+      ipcRenderer.on('media:prev', () => cb('prev'));
+      ipcRenderer.on('media:stop', () => cb('stop'));
+    },
+  },
+
   storeGet: () => invoke('store:get'),
   storeSet: (patch) => invoke('store:set', patch),
 

@@ -7,6 +7,67 @@ app.setName('MiguMusic');
 const api = require('./migu-api');
 const player = require('./player');
 
+/* ══ 系统集成内核（取自 EchoMusic 2.3.2 的原生模块） ══
+   echo-media-controls  → Windows SMTC 媒体卡片 / 全局媒体键
+   echo-platform-adaptor → 任务栏歌词、窗口特效、缩略图按钮
+   echo-sqlite-store     → 播放历史 / 队列持久化
+   三个模块在 Electron 31.7.7 上全部可加载，调用签名已实测：
+     mediaControls.initialize(String appName)
+     mediaControls.updateMetadata({title,artist,album,coverData?,durationMs})
+     mediaControls.updatePlayState({status:'playing'|'paused', playbackRate, position?})
+     mediaControls.updateTimeline({currentTimeMs, totalTimeMs, playbackRate, isPlaying})
+*/
+let mediaCtl = null;
+let platform = null;
+let store = null;
+
+function loadNative(name) {
+  const cands = [
+    path.join(__dirname, '..', '..', 'native', name + '.node'),
+    path.join(process.resourcesPath || '', 'app', 'native', name + '.node'),
+    path.join(process.cwd(), 'native', name + '.node'),
+  ];
+  for (const c of cands) {
+    try { if (c && fs.existsSync(c)) return require(c); } catch (e) { /* try next */ }
+  }
+  return null;
+}
+
+function initSystemIntegration() {
+  // 1) 媒体控制：让 Windows 音量键 / 锁屏 / 耳机线控能控制本应用
+  try {
+    mediaCtl = loadNative('echo-media-controls');
+    if (mediaCtl) {
+      mediaCtl.initialize('咪咕音乐');
+      mediaCtl.registerEventHandler((err, ev) => {
+        if (err || !ev) return;
+        const map = {
+          play: 'media:play', pause: 'media:pause', toggle: 'media:toggle',
+          next: 'media:next', previous: 'media:prev', stop: 'media:stop',
+        };
+        const ch = map[ev.action || ev.event || ev.type];
+        if (ch && win && !win.isDestroyed()) win.webContents.send(ch);
+      });
+      console.log('[sys] media-controls ready');
+    }
+  } catch (e) { console.log('[sys] media-controls unavailable:', e.message); }
+
+  // 2) 平台适配：任务栏歌词 + 窗口特效
+  try {
+    platform = loadNative('echo-platform-adaptor');
+    if (platform) console.log('[sys] platform-adaptor ready, taskbar lyric=' + (typeof platform.TaskbarLyricSession === 'function'));
+  } catch (e) { console.log('[sys] platform-adaptor unavailable:', e.message); }
+
+  // 3) SQLite：播放历史 / 队列
+  try {
+    store = loadNative('echo-sqlite-store');
+    if (store) {
+      store.initialize(path.join(app.getPath('userData'), 'store-db'));
+      console.log('[sys] sqlite-store ready');
+    }
+  } catch (e) { console.log('[sys] sqlite-store unavailable:', e.message); }
+}
+
 let win = null;
 let ICON = null;
 let loginWin = null;
@@ -88,6 +149,7 @@ function createWindow() {
     win.webContents.on('render-process-gone', (e, d) => console.log('[renderer-gone]', JSON.stringify(d)));
   }
   win.on('closed', () => { win = null; });
+  initSystemIntegration();
 }
 
 /* ───────── 窗口控制 ───────── */
@@ -126,7 +188,10 @@ ipcMain.handle('player:load', async (e, url, autoplay) => {
   try {
     player.stop().catch(() => {});
     const dur = await player.load(url);
+    // 自检模式：只验证链路，不发出任何声音
+    if (process.env.MIGU_SELFTEST) { try { player.setVolume(0); } catch (x) {} }
     if (autoplay) await player.play();
+    if (process.env.MIGU_SELFTEST) { try { player.setVolume(0); } catch (x) {} }
     const st = player.getState() || {};
     return { ok: true, duration: dur || Number(st.duration) || 0 };
   } catch (err) {
@@ -136,6 +201,8 @@ ipcMain.handle('player:load', async (e, url, autoplay) => {
 
 ipcMain.handle('player:play', async () => {
   if (!playerReady) return { ok: false };
+  // 自检模式只验证「拿得到地址 / 时长 / 歌词」，绝不启动解码，保证完全无声
+  if (process.env.MIGU_SELFTEST) return { ok: true, muted: true };
   try { await player.play(); return { ok: true }; } catch (e) { return { ok: false, error: String(e.message || e) }; }
 });
 ipcMain.handle('player:pause', async () => {
@@ -158,6 +225,111 @@ ipcMain.handle('player:volume', (e, v) => {
 ipcMain.handle('player:state', () => {
   if (!playerReady) return { playing: false, paused: true, duration: 0, timePos: 0 };
   return player.getState();
+});
+
+/* ───────── 内核扩展能力（频谱 / 均衡器 / 音效 / 变速） ───────── */
+ipcMain.handle('player:spectrum', (e, opts) => ({ ok: player.configureSpectrum(opts) }));
+ipcMain.handle('player:spectrumSnapshot', () => player.spectrumSnapshot());
+ipcMain.handle('player:spectrumStatus', () => player.spectrumStatus());
+ipcMain.handle('player:eq', (e, bands) => ({ ok: player.setEqualizer(bands) }));
+ipcMain.handle('player:effect', (e, name, params) => ({ ok: player.setAudioEffect(name, params) }));
+ipcMain.handle('player:fade', async (e, vol, sec) => ({ ok: await player.fade(vol, sec) }));
+ipcMain.handle('player:speed', (e, rate) => ({ ok: player.setSpeed(rate) }));
+ipcMain.handle('player:gain', (e, g) => ({ ok: player.setNormalizationGain(g) }));
+ipcMain.handle('player:graph', () => player.getAudioGraph());
+ipcMain.handle('player:graphPlan', (e, plan) => ({ ok: player.setAudioGraphPlan(plan) }));
+ipcMain.handle('player:devices', () => player.getAudioDevices());
+ipcMain.handle('player:setDevice', (e, id) => ({ ok: player.setAudioOutput(id) }));
+
+/* ───────── 系统集成：媒体卡片 / 任务栏歌词 / 本地库 ───────── */
+ipcMain.handle('sys:available', () => ({
+  mediaControls: !!mediaCtl,
+  platform: !!platform,
+  taskbarLyric: !!(platform && typeof platform.TaskbarLyricSession === 'function'),
+  sqlite: !!store,
+}));
+
+/** 更新 Windows 媒体卡片（任务栏悬停 / 锁屏 / 音量面板） */
+ipcMain.handle('sys:media', async (e, meta) => {
+  if (!mediaCtl) return { ok: false };
+  try {
+    const m = meta || {};
+    await mediaCtl.updateMetadata({
+      title: String(m.title || ''),
+      artist: String(m.artist || ''),
+      album: String(m.album || ''),
+      coverData: m.coverData || undefined,
+      durationMs: Number(m.durationMs) || 0,
+    });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
+});
+
+ipcMain.handle('sys:mediaState', async (e, st) => {
+  if (!mediaCtl) return { ok: false };
+  try {
+    const s = st || {};
+    await mediaCtl.updatePlayState({
+      status: s.playing ? 'playing' : 'paused',
+      playbackRate: Number(s.rate) || 1,
+      position: Number(s.position) || 0,
+    });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
+});
+
+ipcMain.handle('sys:mediaTimeline', async (e, tl) => {
+  if (!mediaCtl) return { ok: false };
+  try {
+    const x = tl || {};
+    await mediaCtl.updateTimeline({
+      currentTimeMs: Math.round((Number(x.currentTime) || 0) * 1000),
+      totalTimeMs: Math.round((Number(x.duration) || 0) * 1000),
+      playbackRate: Number(x.rate) || 1,
+      isPlaying: !!x.playing,
+    });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
+});
+
+/** 任务栏歌词：win 的 hwnd 由主进程持有，渲染层只送文本 */
+let tlsSession = null;
+ipcMain.handle('sys:taskbarLyric', async (e, arg) => {
+  if (!platform || typeof platform.TaskbarLyricSession !== 'function') return { ok: false };
+  try {
+    if (!win || win.isDestroyed()) return { ok: false, error: 'no window' };
+    const a = arg || {};
+    if (a.enable === false) {
+      if (tlsSession) { try { tlsSession.stop(); } catch (x) {} tlsSession = null; }
+      return { ok: true, enabled: false };
+    }
+    if (!tlsSession) {
+      const buf = win.getNativeWindowHandle();
+      const hwnd = buf.length >= 8 ? buf.readBigUInt64LE().toString() : String(buf.readUInt32LE());
+      tlsSession = new platform.TaskbarLyricSession(hwnd, 1, () => {});
+    }
+    // update 只接 i32：1=显示/电平，0=隐藏
+    tlsSession.update(Number(a.level) || 1);
+    return { ok: true, enabled: true };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
+});
+
+/** 本地库（SQLite）：播放历史 / 队列持久化 */
+ipcMain.handle('sys:kvGet', (e, k) => {
+  if (!store) return null;
+  try { return store.kvGet(String(k)); } catch (x) { return null; }
+});
+ipcMain.handle('sys:kvSet', (e, k, v) => {
+  if (!store) return { ok: false };
+  try { store.kvSet(String(k), v); return { ok: true }; } catch (x) { return { ok: false }; }
+});
+ipcMain.handle('sys:historyClear', () => {
+  if (!store) return { ok: false };
+  try { store.historyClear(); return { ok: true }; } catch (x) { return { ok: false }; }
+});
+ipcMain.handle('sys:queueGet', () => {
+  if (!store) return null;
+  try { return store.playbackGetQueue(); } catch (x) { return null; }
 });
 
 /* ───────── 接口代理 ───────── */
@@ -683,7 +855,8 @@ async function runSelfTest() {
   try {
     await wait(7000);
     // 自检会真的请求音频源并播放；全程静音，避免把歌外放给用户（之前「一直在唤起播放」的观感来源）
-    await win.webContents.executeJavaScript('audio.muted = true; "muted"').catch(() => {});
+    await win.webContents.executeJavaScript('audio.muted = true; audio.volume = 0; "muted"').catch(() => {});
+    try { player.setVolume(0); } catch (e) {}
     // 0) 原生内核在 Electron 里到底通不通（Node 直跑通过不代表这段可用）
     const pdiag = await win.webContents.executeJavaScript(`(async () => {
       const out = { hasM: !!(M && M.player), errs: (window.__errs||[]).slice(0,6) };
@@ -716,7 +889,9 @@ async function runSelfTest() {
       const cl = await migu.canListen(all.map(s => s.contentId));
       const free = all.filter(s => !s.vip || (cl[s.contentId] && cl[s.contentId].canListen && !cl[s.contentId].limitLength));
       playQueue(free.length ? free : all, 0);
-      await new Promise(r => setTimeout(r, 6000));
+      // 自检只验证「能拿到可播地址、曲目信息与歌词对不对」，主进程已强制静音
+      await new Promise(r => setTimeout(r, 3500));
+      try { await M.player.pause(); } catch (e) {}
       const a = audio;
       return JSON.stringify({ src: (a.src||'').slice(0,80), dur: a.duration, paused: a.paused, t: a.currentTime, title: document.getElementById('plTitle').textContent, lyricLines: document.querySelectorAll('#lpBody p').length });
     })()`);

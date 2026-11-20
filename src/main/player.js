@@ -108,6 +108,10 @@ function forward(ev) {
     emitter({ type: 'error', message: ev.message || '播放出错', code: ev.errorCode || '' });
     return;
   }
+  if (name === 'spectrum' || name === 'audio-graph') {
+    emitter({ type: 'spectrum', data: ev.data || ev.values || null, at: Date.now() });
+    return;
+  }
   if (name === 'log' && ev.level === 'error') {
     emitter({ type: 'error', message: ev.message || '解码错误' });
     return;
@@ -154,4 +158,134 @@ function destroy() {
   ready = false;
 }
 
-module.exports = { init, load, play, pause, stop, seek, setVolume, getState, destroy, isReady: () => ready, lastError: () => lastError };
+
+
+/* ══════════════════════════════════════════════════════════════
+   内核扩展能力（2026-11-20）
+   echo-ffmpeg-player.node 实际导出 40+ 个方法，这里把它接出来：
+   频谱 / 均衡器 / 音效 / 淡入淡出 / 变速 / 归一化增益 / 音频图。
+   之前只用了 load/play/pause/seek/setVolume 六个。
+   ══════════════════════════════════════════════════════════════ */
+
+/** 频谱：先按需打开配置，再取快照 */
+function configureSpectrum(opts) {
+  if (!ready || typeof mod.configureSpectrum !== 'function') return false;
+  try {
+    const o = opts || {};
+    mod.configureSpectrum({
+      enabled: o.enabled !== false,
+      bands: Number(o.bands) || 64,
+      sampleRate: Number(o.sampleRate) || 48000,
+      intervalMs: Number(o.intervalMs) || 33,
+    });
+    return true;
+  } catch (e) { return false; }
+}
+
+function spectrumSnapshot() {
+  if (!ready || typeof mod.getSpectrumSnapshot !== 'function') return null;
+  try { return mod.getSpectrumSnapshot(); } catch (e) { return null; }
+}
+
+function spectrumStatus() {
+  if (!ready || typeof mod.getSpectrumStatus !== 'function') return null;
+  try { return mod.getSpectrumStatus(); } catch (e) { return null; }
+}
+
+/** 均衡器：bands = [{freq, gain}] 或 [{frequency, gain, q}] */
+/**
+ * 均衡器。实测内核只接受「纯 number 数组」——每个元素是该段的增益 dB（f64），
+ * 传对象数组会抛 Failed to convert napi value Object into rust type f64。
+ * 因此这里兼容两种入参：
+ *   setEqualizer([3, 0, -2, ...])        直接给 dB 数组
+ *   setEqualizer([{freq,gain}, ...])     先按频段取 gain 再投喂
+ */
+function setEqualizer(bands) {
+  if (!ready || typeof mod.setEqualizer !== 'function') return false;
+  let arr = [];
+  if (Array.isArray(bands)) {
+    arr = bands.map((b) => {
+      if (typeof b === 'number') return Number(b) || 0;
+      if (b && typeof b === 'object') return Number(b.gain) || 0;
+      return 0;
+    });
+  }
+  try { mod.setEqualizer(arr); return true; } catch (e) { return false; }
+}
+
+/** 音效预设：字符串名或对象 */
+function setAudioEffect(name, params) {
+  if (!ready || typeof mod.setAudioEffect !== 'function') return false;
+  try {
+    if (params === undefined) mod.setAudioEffect(String(name || ''));
+    else mod.setAudioEffect(String(name || ''), params);
+    return true;
+  } catch (e) { return false; }
+}
+
+/** 淡入淡出：durationSec 秒 */
+function fade(targetVolume, durationSec) {
+  if (!ready || typeof mod.fade !== 'function') return Promise.resolve(false);
+  const to = Number(targetVolume) || 0;
+  const sec = Math.max(0.05, Number(durationSec) || 0.3);
+  // 实测签名要 (from, to, sec) 三个 f64；只给两个会抛 Undefined
+  const cur = (() => { try { return Number((mod.getState() || {}).volume) / 100 || 0; } catch (e) { return 0; } })();
+  const attempts = [
+    () => mod.fade(cur, to, sec),
+    () => mod.fade(to, sec),
+  ];
+  for (const fn of attempts) {
+    try { return Promise.resolve(fn()).then(() => true).catch(() => false); } catch (e) { /* 试下一种 */ }
+  }
+  return Promise.resolve(false);
+}
+
+/** 变速：rate 0.5~2 */
+function setSpeed(rate) {
+  if (!ready || typeof mod.setSpeed !== 'function') return false;
+  try { mod.setSpeed(Math.max(0.25, Math.min(3, Number(rate) || 1))); return true; }
+  catch (e) { return false; }
+}
+
+/** 响度归一化增益（dB 或线性，按内核实现透传） */
+function setNormalizationGain(gain) {
+  if (!ready || typeof mod.setNormalizationGain !== 'function') return false;
+  try { mod.setNormalizationGain(Number(gain) || 0); return true; }
+  catch (e) { return false; }
+}
+
+/** 音频图（DSP 链）：plan 结构由内核定义，这里只做透传 + 校验 */
+function setAudioGraphPlan(plan) {
+  if (!ready || typeof mod.setAudioGraphPlan !== 'function') return false;
+  try { mod.setAudioGraphPlan(plan || {}); return true; }
+  catch (e) { return false; }
+}
+
+function getAudioGraph() {
+  if (!ready || typeof mod.getAudioGraph !== 'function') return null;
+  try { return mod.getAudioGraph(); } catch (e) { return null; }
+}
+
+/** 输出设备：列出 / 切换 */
+function getAudioDevices() {
+  if (!ready || typeof mod.getAudioDevices !== 'function') return [];
+  try {
+    const d = mod.getAudioDevices();
+    if (Array.isArray(d)) return d;
+    if (d && Array.isArray(d.devices)) return d.devices;
+    return [];
+  } catch (e) { return []; }
+}
+
+function setAudioOutput(deviceId) {
+  if (!ready || typeof mod.setAudioOutput !== 'function') return false;
+  try { mod.setAudioOutput(String(deviceId || '')); return true; } catch (e) { return false; }
+}
+
+module.exports = {
+  init, load, play, pause, stop, seek, setVolume, getState, destroy,
+  configureSpectrum, spectrumSnapshot, spectrumStatus,
+  setEqualizer, setAudioEffect, fade, setSpeed, setNormalizationGain,
+  setAudioGraphPlan, getAudioGraph, getAudioDevices, setAudioOutput,
+  isReady: () => ready, lastError: () => lastError,
+};

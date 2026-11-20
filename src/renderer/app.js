@@ -1525,6 +1525,248 @@ audio.addEventListener('error', () => {
   setTimeout(() => playNext(true), 900);
 });
 
+/* ══ 系统集成：Windows 媒体卡片 / 任务栏歌词 / 全局媒体键 ══ */
+(function initSystemBridge() {
+  const sys = M.sys;
+  if (!sys) return;
+
+  // 1) 媒体卡片：曲目变化时推 metadata，播放状态变化时推 state，进度按 5s 推一次
+  let lastMeta = '', lastDur = 0;
+  function pushMeta() {
+    const s = S.queue[S.qIndex];
+    if (!s) return;
+    const key = s.contentId + '|' + s.name;
+    if (key === lastMeta) return;
+    lastMeta = key;
+    sys.media({
+      title: s.name || '',
+      artist: s.singer || '',
+      album: s.album || '',
+      durationMs: Math.round((audio.duration || 0) * 1000),
+    }).catch(() => {});
+  }
+  function pushState() {
+    sys.mediaState({ playing: !audio.paused, rate: 1, position: audio.currentTime || 0 }).catch(() => {});
+  }
+  let lastTl = 0;
+  function pushTimeline(force) {
+    const now = Date.now();
+    if (!force && now - lastTl < 5000) return;
+    lastTl = now;
+    sys.mediaTimeline({
+      currentTime: audio.currentTime || 0,
+      duration: audio.duration || 0,
+      rate: 1,
+      playing: !audio.paused,
+    }).catch(() => {});
+  }
+
+  audio.addEventListener('loadedmetadata', () => { pushMeta(); pushTimeline(true); });
+  audio.addEventListener('play', () => { pushMeta(); pushState(); });
+  audio.addEventListener('pause', pushState);
+  audio.addEventListener('timeupdate', () => pushTimeline(false));
+
+  // 全局媒体键（音量面板 / 耳机线控 / 锁屏）
+  if (sys.onMediaKey) {
+    sys.onMediaKey((act) => {
+      if (act === 'play') { if (audio.paused) $('#btnPlay').click(); }
+      else if (act === 'pause') { if (!audio.paused) $('#btnPlay').click(); }
+      else if (act === 'toggle') $('#btnPlay').click();
+      else if (act === 'next') $('#btnNext').click();
+      else if (act === 'prev') $('#btnPrev').click();
+      else if (act === 'stop') { audio.pause(); }
+    });
+  }
+
+  // 2) 任务栏歌词：歌词行变化时把当前行推进任务栏
+  window.__taskbarLyric = (level) => {
+    if (!sys.taskbarLyric) return;
+    sys.taskbarLyric({ enabled: level !== 0, level: level || 0 }).catch(() => {});
+  };
+
+  // 3) 探测内核可用性（首次启动打一行日志，便于排查）
+  sys.available().then((a) => {
+    S.sysAvail = a;
+  }).catch(() => {});
+})();
+
+
+/* ══════════════════════════════════════════════════════════════
+   声音面板：均衡器 / 音效 / 变速 / 输出设备
+   底层是 echo-ffmpeg-player.node 里本来就存在、之前从未被调用的方法：
+     setEqualizer(number[])  每段增益 dB（实测只吃纯 number 数组）
+     setAudioEffect(string)  预设名
+     setSpeed(number)        0.25 ~ 3
+     getAudioDevices() / setAudioOutput(id)
+   ══════════════════════════════════════════════════════════════ */
+const EQ_BANDS = [
+  { freq: 31, label: '31' }, { freq: 62, label: '62' }, { freq: 125, label: '125' },
+  { freq: 250, label: '250' }, { freq: 500, label: '500' }, { freq: 1000, label: '1k' },
+  { freq: 2000, label: '2k' }, { freq: 4000, label: '4k' }, { freq: 8000, label: '8k' }, { freq: 16000, label: '16k' },
+];
+const EQ_PRESETS = {
+  '平直': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  '流行': [-1, 0, 2, 4, 4, 2, 0, -1, -1, -2],
+  '摇滚': [4, 3, 1, -1, -1, 1, 3, 4, 4, 4],
+  '爵士': [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
+  '古典': [4, 3, 2, 1, 0, 0, 0, 1, 2, 3],
+  '人声': [-2, -1, 1, 3, 4, 4, 3, 1, 0, -1],
+  '低音': [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
+  '高音': [0, 0, 0, 0, 0, 0, 2, 4, 5, 6],
+};
+const FX_LIST = ['关闭', '流行', '摇滚', '爵士', '古典', '人声', '低音增强', '高音增强', '现场', '舞曲'];
+
+let eqGains = EQ_PRESETS['平直'].slice();
+let eqPreset = '平直';
+let curFx = '关闭';
+let curSpeed = 1;
+let soundInit = false;
+
+function buildSoundPanel() {
+  if (soundInit) return;
+  soundInit = true;
+
+  // 预设
+  const box = $('#eqPresets');
+  if (box) {
+    box.innerHTML = Object.keys(EQ_PRESETS).map((k) =>
+      '<span class="eq-chip' + (k === eqPreset ? ' is-on' : '') + '" data-eq="' + esc(k) + '">' + esc(k) + '</span>'
+    ).join('');
+     $$('[data-eq]', box).forEach((el) => {
+      el.onclick = () => {
+        eqPreset = el.dataset.eq;
+        eqGains = EQ_PRESETS[eqPreset].slice();
+        $$('.eq-chip', box).forEach((x) => x.classList.toggle('is-on', x.dataset.eq === eqPreset));
+        paintEq();
+        applyEq();
+      };
+    });
+  }
+
+  // 推子
+  const bands = $('#eqBands');
+  if (bands) {
+    bands.innerHTML = EQ_BANDS.map((b, i) =>
+      '<div class="eq-band" data-band="' + i + '">' +
+        '<span class="eq-db" data-db="' + i + '">0</span>' +
+        '<div class="eq-track"><div class="eq-mid"></div><div class="eq-fill" data-fill="' + i + '"></div></div>' +
+        '<span class="eq-lbl">' + esc(b.label) + '</span>' +
+      '</div>'
+    ).join('');
+    $$('.eq-track', bands).forEach((tr, i) => {
+      const setFromY = (clientY) => {
+        const r = tr.getBoundingClientRect();
+        const p = 1 - Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+        const dB = Math.round((p - 0.5) * 24); // -12 ~ +12
+        eqGains[i] = Math.max(-12, Math.min(12, dB));
+        eqPreset = '';
+        $$('.eq-chip', box).forEach((x) => x.classList.remove('is-on'));
+        paintEq();
+        applyEq();
+      };
+      tr.addEventListener('pointerdown', (e) => {
+        tr.setPointerCapture(e.pointerId);
+        setFromY(e.clientY);
+        const move = (ev) => setFromY(ev.clientY);
+        const up = () => { tr.removeEventListener('pointermove', move); tr.removeEventListener('pointerup', up); };
+        tr.addEventListener('pointermove', move);
+        tr.addEventListener('pointerup', up);
+      });
+    });
+    paintEq();
+  }
+
+  // 音效
+  const fx = $('#fxChips');
+  if (fx) {
+    fx.innerHTML = FX_LIST.map((k) =>
+      '<span class="eq-chip' + (k === curFx ? ' is-on' : '') + '" data-fx="' + esc(k) + '">' + esc(k) + '</span>'
+    ).join('');
+    $$('[data-fx]', fx).forEach((el) => {
+      el.onclick = () => {
+        curFx = el.dataset.fx;
+        $$('[data-fx]', fx).forEach((x) => x.classList.toggle('is-on', x.dataset.fx === curFx));
+        M.effect(curFx === '关闭' ? '' : curFx).catch(() => {});
+      };
+    });
+  }
+
+  // 速度
+  const sp = $('#speedBar');
+  if (sp) {
+    const setSpeedFromX = (clientX) => {
+      const r = sp.getBoundingClientRect();
+      const p = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      curSpeed = Math.round((0.5 + p * 1.5) * 20) / 20;
+      paintSpeed();
+      M.speed(curSpeed).catch(() => {});
+    };
+    sp.addEventListener('pointerdown', (e) => {
+      sp.setPointerCapture(e.pointerId);
+      setSpeedFromX(e.clientX);
+      const move = (ev) => setSpeedFromX(ev.clientX);
+      const up = () => { sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up); };
+      sp.addEventListener('pointermove', move);
+      sp.addEventListener('pointerup', up);
+    });
+    paintSpeed();
+  }
+
+  // 输出设备
+  M.devices().then((list) => {
+    const sel = $('#devSel');
+    if (!sel) return;
+    const arr = Array.isArray(list) ? list : [];
+    sel.innerHTML = '<option value="">系统默认</option>' +
+      arr.map((d) => '<option value="' + esc(d.id || d.deviceId || d.name || '') + '">' + esc(d.name || d.label || String(d)) + '</option>').join('');
+    sel.onchange = () => M.setDevice(sel.value).catch(() => {});
+  }).catch(() => {});
+}
+
+function paintEq() {
+  eqGains.forEach((g, i) => {
+    const fill = $('[data-fill="' + i + '"]');
+    const db = $('[data-db="' + i + '"]');
+    if (fill) {
+      const pct = Math.abs(g) / 12 * 50; // 半高为 ±12dB
+      if (g >= 0) { fill.style.bottom = '50%'; fill.style.height = pct + '%'; }
+      else { fill.style.bottom = (50 - pct) + '%'; fill.style.height = pct + '%'; }
+      fill.style.background = g >= 0 ? 'var(--brand)' : '#e5484d';
+    }
+    if (db) db.textContent = (g > 0 ? '+' : '') + g;
+  });
+}
+
+function applyEq() {
+  M.eq(eqGains).catch(() => {});
+}
+
+function paintSpeed() {
+  const fill = $('#speedFill');
+  const dot = $('#speedDot');
+  const val = $('#speedVal');
+  const p = (curSpeed - 0.5) / 1.5;
+  if (fill) fill.style.width = (p * 100) + '%';
+  if (dot) dot.style.left = (p * 100) + '%';
+  if (val) val.textContent = curSpeed.toFixed(2) + '×';
+}
+
+/* 面板开关 */
+(function bindSoundPanel() {
+  const btn = $('#btnSound');
+  const panel = $('#soundPanel');
+  if (!btn || !panel) return;
+  btn.onclick = () => {
+    const on = panel.classList.toggle('open');
+    btn.classList.toggle('active', on);
+    $('#queuePanel').classList.remove('open');
+    $('#lyricPanel').classList.remove('open');
+    if (on) buildSoundPanel();
+  };
+  const close = $('#sndClose');
+  if (close) close.onclick = () => { panel.classList.remove('open'); btn.classList.remove('active'); };
+})();
+
 /* 键盘 */
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
