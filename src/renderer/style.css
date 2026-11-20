@@ -901,11 +901,11 @@ a{color:inherit;text-decoration:none;cursor:pointer}
 :root{
   /* 玻璃色板：偏冷紫 + 青，不同于 EchoMusic 的灰 + 绿 */
   --glass-base:#0b0b12;
-  --glass-tint:rgba(16,16,24,.34);
+  --glass-tint:rgba(14,14,22,.28);
   --glass-tint-strong:rgba(255,255,255,.09);
   --glass-border:rgba(255,255,255,.13);
   --glass-border-soft:rgba(255,255,255,.07);
-  --glass-blur:46px;
+  --glass-blur:18px;
   --glass-saturate:142%;
   --ink-1:#f7f7fb;
   --ink-2:rgba(247,247,251,.72);
@@ -933,7 +933,9 @@ body{
 /* ── 光场：唯一的实体层 ── */
 .glass-field{
   position:fixed;inset:-20%;z-index:0;pointer-events:none;
-  filter:blur(64px) saturate(112%);
+  /* 关键：不再整体 blur。液态玻璃要能折射出形状，
+     所以色斑用自身径向渐变做软，几何元素保持锐利。 */
+  filter:saturate(118%);
   transform:translateZ(0);
 }
 .gf{
@@ -1008,14 +1010,28 @@ body{
 }
 
 /* ── 玻璃材质：所有面板共用 ── */
+.sidebar{
+  --lg-f:url(#lg-refract-lg);
+}
+.panel{
+  --lg-f:url(#lg-refract);
+}
 .sidebar,.panel{
   position:relative;isolation:isolate;
   border-radius:var(--r-glass);
   background:
-    linear-gradient(160deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.02) 40%, rgba(0,0,0,.06) 100%),
+    linear-gradient(160deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.025) 40%, rgba(0,0,0,.06) 100%),
     var(--glass-tint);
-  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(1.06);
-  backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(1.06);
+  /* 液态玻璃 = 模糊 + 提纯 + 亮度 + **折射位移**（最后一项是关键，磨砂玻璃没有） */
+  -webkit-backdrop-filter:blur(7px) saturate(150%) brightness(1.06) url(#lg-refract);
+  backdrop-filter:blur(7px) saturate(150%) brightness(1.06) url(#lg-refract);
+  /* 折射只能作用在 backdrop 上，内容是清晰的；再叠一层内阴影做玻璃厚度 */
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,.28) inset,
+    0 -1px 0 0 rgba(0,0,0,.28) inset,
+    0 0 0 1px rgba(255,255,255,.09),
+    0 26px 64px -30px rgba(0,0,0,.85),
+    0 3px 10px -3px rgba(0,0,0,.4);
   border:1px solid var(--glass-border-soft);
   box-shadow:
     0 1px 0 0 rgba(255,255,255,.16) inset,      /* 上缘亮边 */
@@ -1265,9 +1281,9 @@ body{
   position:fixed;right:var(--edge);top:calc(var(--edge) + 16px);bottom:var(--edge);
   width:min(420px, calc(100vw - var(--edge) * 2 - 20px));
   border-radius:var(--r-glass);
-  background:linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.02) 42%, rgba(0,0,0,.1)), rgba(18,18,26,.52);
-  -webkit-backdrop-filter:blur(40px) saturate(170%);
-  backdrop-filter:blur(40px) saturate(170%);
+  background:linear-gradient(160deg, rgba(255,255,255,.11), rgba(255,255,255,.025) 42%, rgba(0,0,0,.12)), rgba(16,16,24,.42);
+  -webkit-backdrop-filter:blur(8px) saturate(160%) brightness(1.05) url(#lg-refract-lg);
+  backdrop-filter:blur(8px) saturate(160%) brightness(1.05) url(#lg-refract-lg);
   border:1px solid var(--glass-border);
   box-shadow:0 1px 0 rgba(255,255,255,.16) inset, -20px 0 60px -30px rgba(0,0,0,.9);
   transform:translateX(calc(100% + 24px));
@@ -1291,9 +1307,9 @@ body{
   position:fixed;left:50%;bottom:120px;transform:translate(-50%,16px) scale(.98);
   display:flex;align-items:center;gap:12px;
   padding:13px 15px;border-radius:18px;
-  background:rgba(24,24,32,.68);
-  -webkit-backdrop-filter:blur(30px) saturate(160%);
-  backdrop-filter:blur(30px) saturate(160%);
+  background:rgba(22,22,30,.6);
+  -webkit-backdrop-filter:blur(6px) saturate(160%) url(#lg-refract-sm);
+  backdrop-filter:blur(6px) saturate(160%) url(#lg-refract-sm);
   border:1px solid var(--glass-border);
   box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 20px 50px -20px rgba(0,0,0,.9);
   opacity:0;pointer-events:none;
@@ -1374,14 +1390,15 @@ body{
 .view.is-home .hrk,
 .view.is-home .hp-img,
 .view.is-home .hrow{
-  background:linear-gradient(150deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.03) 45%, rgba(0,0,0,.05) 100%);
-  border:1px solid rgba(255,255,255,.10);
+  background:linear-gradient(150deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.035) 45%, rgba(0,0,0,.05) 100%);
+  border:1px solid rgba(255,255,255,.12);
   box-shadow:
-    0 1px 0 rgba(255,255,255,.18) inset,
-    0 -1px 0 rgba(0,0,0,.18) inset,
-    0 10px 26px -16px rgba(0,0,0,.8);
-  -webkit-backdrop-filter:blur(16px) saturate(150%);
-  backdrop-filter:blur(16px) saturate(150%);
+    0 1px 0 rgba(255,255,255,.24) inset,
+    0 -1px 0 rgba(0,0,0,.2) inset,
+    0 0 0 1px rgba(255,255,255,.05),
+    0 12px 30px -18px rgba(0,0,0,.85);
+  -webkit-backdrop-filter:blur(5px) saturate(160%) brightness(1.05) url(#lg-refract-sm);
+  backdrop-filter:blur(5px) saturate(160%) brightness(1.05) url(#lg-refract-sm);
 }
 .view.is-home .hp-img{
   border-radius:16px;aspect-ratio:1;
@@ -1579,3 +1596,126 @@ table.songs tbody tr:hover td{color:var(--ink-1)}
 .empty svg{fill:var(--ink-4);opacity:.5}
 .loading{color:var(--ink-3)}
 .spin{border-color:rgba(255,255,255,.16);border-top-color:var(--spec-1)}
+
+
+/* ══ 可折射的几何层 ══
+   玻璃要「看得出是玻璃」，背后必须有清晰的边缘线：
+   同心环 + 斜向光带。这些形状会被 backdrop-filter 的位移图推开，
+   形成真实的折射错位。 */
+
+/* 同心环：藏在左侧与右下 */
+.gf-rings{position:absolute;inset:0;pointer-events:none}
+.gf-rings i{
+  position:absolute;display:block;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.14);
+}
+.gf-rings i:nth-child(1){width:34vw;height:34vw;left:-6vw;top:8vh;border:2px solid rgba(180,170,255,.42)}
+.gf-rings i:nth-child(2){width:24vw;height:24vw;left:1vw;top:16vh;border:1.5px solid rgba(180,170,255,.3)}
+.gf-rings i:nth-child(3){width:30vw;height:30vw;right:-4vw;top:-2vh;border:2px solid rgba(170,235,255,.38)}
+.gf-rings i:nth-child(4){width:20vw;height:20vw;right:2vw;top:4vh;border:1.5px solid rgba(170,235,255,.26)}
+
+/* 斜向光带：三条，45°，宽 60~110px */
+.gf-bands{position:absolute;inset:-30%;pointer-events:none;opacity:.85}
+.gf-bands i{
+  position:absolute;display:block;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.20),transparent);
+  transform:rotate(-24deg);
+}
+.gf-bands i:nth-child(1){width:110px;height:180%;left:18%;top:-20%}
+.gf-bands i:nth-child(2){width:70px;height:180%;left:44%;top:-20%;background:linear-gradient(90deg,transparent,rgba(159,232,255,.22),transparent)}
+.gf-bands i:nth-child(3){width:150px;height:180%;left:66%;top:-20%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)}
+
+/* 色斑保持软，但降低不透明度，让几何层显出来 */
+.gf-1{opacity:.42}
+.gf-2{opacity:.34}
+.gf-3{opacity:.26}
+.gf-4{opacity:.2}
+
+
+/* ══ 液态玻璃的两个灵魂细节 ══
+   ① 棱边聚光：真实玻璃边缘会把光聚成一条亮带（不是均匀描边）
+   ② 流动高光：光斑缓慢扫过，玻璃看起来是「液体」而不是「板子」 */
+
+/* ① 棱边聚光：用 mask 把高光限制在边缘 2px 环带，中间透明 */
+.sidebar::before,.panel::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  padding:1.5px;
+  background:
+    conic-gradient(from 200deg at 50% 50%,
+      rgba(255,255,255,.55) 0deg,
+      rgba(255,255,255,.06) 70deg,
+      rgba(255,255,255,.02) 140deg,
+      rgba(255,255,255,.30) 200deg,
+      rgba(255,255,255,.04) 260deg,
+      rgba(255,255,255,.44) 330deg,
+      rgba(255,255,255,.55) 360deg);
+  /* Chromium 里 mask 的 exclude 需要用 composite 语义表达：
+     content-box 之外保留，内部挖空 → 只剩 1.5px 环带 */
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude;
+  opacity:.9;
+}
+
+/* ② 流动高光：一道 120° 的斜向光带，18s 转一圈，被面板裁切 */
+.sidebar::after,.panel::after{
+  content:"";position:absolute;inset:-40%;border-radius:inherit;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,
+    transparent 38%,
+    rgba(255,255,255,.055) 46%,
+    rgba(255,255,255,.13) 50%,
+    rgba(255,255,255,.055) 54%,
+    transparent 62%);
+  animation:sheetSweep 17s cubic-bezier(.42,0,.58,1) infinite;
+  mix-blend-mode:screen;opacity:.9;
+}
+@keyframes sheetSweep{
+  0%   {transform:translate3d(-58%,0,0) rotate(0.001deg)}
+  50%  {transform:translate3d(58%,0,0) rotate(0.001deg)}
+  100% {transform:translate3d(-58%,0,0) rotate(0.001deg)}
+}
+
+/* 面板内容要压在光带之上 */
+.panel > .topbar,.panel > .view,
+.sidebar > .sb-head,.sidebar > .sb-profile,.sidebar > .sb-shortcut,
+.sidebar > .sb-nav,.sidebar > .sb-group,.sidebar > .sb-bottom{
+  position:relative;z-index:4;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .sidebar::after,.panel::after{animation:none;opacity:.4}
+}
+
+
+/* ══ 棱边高光绕玻璃旋转 ══
+   用 @property 让自定义属性可插值，conic-gradient 的起始角就能动，
+   看起来像一条光沿着玻璃边缘慢慢游走。 */
+@property --lg-edge-angle{
+  syntax:'<angle>';
+  inherits:false;
+  initial-value:200deg;
+}
+.sidebar::before,.panel::before{
+  animation:edgeOrbit 22s linear infinite;
+}
+@keyframes edgeOrbit{
+  from{--lg-edge-angle:0deg}
+  to  {--lg-edge-angle:360deg}
+}
+/* 环带渐变改用变量控制起始角 */
+.sidebar::before,.panel::before{
+  background:
+    conic-gradient(from var(--lg-edge-angle) at 50% 50%,
+      rgba(255,255,255,.55) 0deg,
+      rgba(255,255,255,.05) 70deg,
+      rgba(255,255,255,.015) 140deg,
+      rgba(255,255,255,.32) 200deg,
+      rgba(255,255,255,.04) 260deg,
+      rgba(255,255,255,.46) 330deg,
+      rgba(255,255,255,.55) 360deg);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .sidebar::before,.panel::before{animation:none}
+}

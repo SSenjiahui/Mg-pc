@@ -9,10 +9,40 @@
 <link rel="stylesheet" href="lattice-lyrics.css" />
 </head>
 <body>
+  <!-- 液态玻璃折射滤镜
+       feTurbulence 程序化生成平滑位移场；feDisplacementMap 的 scale 用 SMIL
+       做 11–19s 的呼吸动画 —— 这是"液态"的来源：玻璃不是静止的，
+       折射强度像液体表面一样缓慢起伏。三个档位对应面板尺寸。 -->
+  <svg class="glass-filters" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="lg-refract-sm" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.004" numOctaves="1" seed="17" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="52" xChannelSelector="R" yChannelSelector="G">
+          <animate attributeName="scale" values="44;68;52;44" dur="13s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1;.42 0 .58 1"/>
+        </feDisplacementMap>
+      </filter>
+      <filter id="lg-refract" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.003" numOctaves="1" seed="11" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="110" xChannelSelector="R" yChannelSelector="G">
+          <animate attributeName="scale" values="92;134;110;92" dur="17s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1;.42 0 .58 1"/>
+        </feDisplacementMap>
+      </filter>
+      <filter id="lg-refract-lg" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0022" numOctaves="2" seed="5" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="150" xChannelSelector="R" yChannelSelector="G">
+          <animate attributeName="scale" values="126;182;150;126" dur="19s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1;.42 0 .58 1"/>
+        </feDisplacementMap>
+      </filter>
+    </defs>
+  </svg>
+
 <div id="app">
   <!-- 玻璃背后的光场：液态玻璃必须有流动的色彩才有折射感 -->
   <div class="glass-field" aria-hidden="true">
     <i class="gf gf-1"></i><i class="gf gf-2"></i><i class="gf gf-3"></i><i class="gf gf-4"></i>
+    <!-- 清晰几何：玻璃折射必须有可折射的形状，否则只有模糊 -->
+    <div class="gf-rings"><i></i><i></i><i></i><i></i></div>
+    <div class="gf-bands"><i></i><i></i><i></i></div>
     <div class="gf-noise"></div>
   </div>
 

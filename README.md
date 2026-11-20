@@ -112,15 +112,58 @@ key 表按请求类型分组，常量定义在 `src/main/migu-api.js`（逆向�
 
 ## 界面：液态玻璃（Liquid Glass）
 
-不是"深色 + 卡片"，而是三层材质叠出来的液态玻璃：
+**这不是磨砂玻璃。** 磨砂玻璃只做模糊（`blur`），液态玻璃的核心是**折射**：
+光穿过厚玻璃时会在边缘被推开，背后的形状因此发生错位与弯曲。
 
-| 层 | 作用 | 实现 |
-| --- | --- | --- |
-| `.glass-field` | 光场——唯一"实"的东西 | 四团 52/46/44/34vw 色斑（紫 / 青 / 洋红 / 薄荷），`blur(64px) saturate(112%)`，28–46s 循环漂移 |
-| `.panel` / `.sidebar` | 玻璃板 | `backdrop-filter: blur(46px) saturate(142%) brightness(1.06)` + 深色 34% tint + 顶底双向 inset 阴影做厚度 |
-| `.glass-specular` | 棱边高光 | 左上角 `radial-gradient` 白 + 顶部 12% 渐隐，`mix-blend-mode: screen` |
+### 三个必须是真材实料的部分
 
-配色刻意避开 EchoMusic 的灰 + 绿，改用：
+**① 折射（feDisplacementMap）**
+
+```html
+<filter id="lg-refract">
+  <feTurbulence type="fractalNoise" baseFrequency="0.003" numOctaves="1" seed="11" result="n"/>
+  <feDisplacementMap in="SourceGraphic" in2="n" scale="110" xChannelSelector="R" yChannelSelector="G">
+    <animate attributeName="scale" values="92;134;110;92" dur="17s" repeatCount="indefinite"/>
+  </feDisplacementMap>
+</filter>
+```
+
+```css
+backdrop-filter: blur(7px) saturate(150%) brightness(1.06) url(#lg-refract);
+```
+
+关键在最后那个 `url(#lg-refract)`。没有它，就只是磨砂玻璃。
+`scale` 用 SMIL 做 13–19s 的呼吸，所以折射强度一直在缓慢起伏 —— 这是「液态」的来源。
+
+三个档位：`lg-refract-sm`（卡片 64→44）、`lg-refract`（面板 110→92）、`lg-refract-lg`（抽屉 150→126）。
+
+**② 可折射的几何**
+
+玻璃背后必须有**清晰的边缘**才看得出折射。所以光场里除了四团柔和色斑，还有：
+
+- `.gf-rings` 四道同心环（1.5–2px 描边，紫/青两色）
+- `.gf-bands` 三条 24° 斜向光带（70–150px 宽）
+
+光场本身**不做整体 blur** —— 一糊就没东西可折了。柔化靠色斑自身的径向渐变。
+
+**③ 棱边聚光 + 绕行高光**
+
+```css
+@property --lg-edge-angle { syntax:'<angle>'; inherits:false; initial-value:200deg }
+
+.sidebar::before,.panel::before{
+  padding:1.5px;
+  background:conic-gradient(from var(--lg-edge-angle) at 50% 50%, ...);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;   /* 只剩 1.5px 环带 */
+  animation:edgeOrbit 22s linear infinite;
+}
+```
+
+真实玻璃边缘会把光聚成一条亮带，不是均匀描边。`conic-gradient` 配合 `@property`
+让这条亮带沿边缘缓慢游走。
+
+### 配色与尺寸
 
 ```
 --spec-1 #8b7cff   冷紫（主）
@@ -130,16 +173,15 @@ key 表按请求类型分组，常量定义在 `src/main/migu-api.js`（逆向�
 --r-glass 22px
 ```
 
-动效：
-- 色斑永不停歇地漂移，颜色组合不会重复
-- 指针移动时面板按层做 ±6px 反向位移（`--px`/`--py` 变量 + rAF 缓动）
-- `prefers-reduced-motion` 下全部静止
+与 EchoMusic（灰 + 绿 `#00cc65` + 10px 圆角 + 纯色背景）完全不同。
 
-首页卡片不是实心方块，而是**半透明玻璃 + 自身 backdrop-filter 再磨一次**，
-底下的色斑会透上来。榜单卡、歌单卡、专辑卡、详情页封面统一走这套。
+### 实测
 
-全屏歌词层同步改成玻璃：`inset: 0` 铺满 + `rgba(10,10,16,.82)` 底 + `blur(40px)`，
-渐隐边缘改用紫/青体系。
+- 折射：`backdrop-filter` 计算值含 `url("#lg-refract")`，边缘可见条纹错位
+- 动画：3 秒间隔两次截图，**53.8%** 像素发生变化（`26,253 / 48,841`）
+- 边缘：4× 放大可见圆角处 1.5px 亮线，背景光带被推开
+
+![玻璃边缘 4× 放大](docs/screenshots/glass-edge.png)
 
 
 ## 首页（发现音乐）
