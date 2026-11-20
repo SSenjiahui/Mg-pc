@@ -1368,7 +1368,7 @@ $('#globalSearch').addEventListener('blur', () => {
 $('#searchGo').onclick = () => doSearch($('#globalSearch').value, 'song');
 
 /* ─────────────── 侧栏 / 顶栏 ─────────────── */
-$$('.side-item').forEach((el) => {
+$$('.side-item, .sc-btn').forEach((el) => {
   el.onclick = () => go(el.dataset.view, {});
 });
 $('#navBack').onclick = back;
@@ -1476,15 +1476,21 @@ function closeAllPanels() {
   const lx = LX();
   if (lx && lx.isOpen()) lx.close();
 }
-$('#btnLyric').onclick = () => {
+function toggleLyric() {
   $('#lyricPanel').classList.remove('open');
   $('#queuePanel').classList.remove('open');
   $('#btnQueue').classList.remove('active');
   const lx = LX();
   if (!lx) return;
   lx.toggle();
-  $('#btnLyric').classList.toggle('active', lx.isOpen());
-};
+  const on = lx.isOpen();
+  $('#btnLyric').classList.toggle('active', on);
+  const b2 = $('#btnLyric2');
+  if (b2) b2.classList.toggle('active', on);
+}
+$('#btnLyric').onclick = toggleLyric;
+$('#btnLyric2').onclick = toggleLyric;
+$('#btnHome').onclick = () => go('home', {}, true);
 $('#lpClose').onclick = () => { $('#lyricPanel').classList.remove('open'); $('#btnLyric').classList.remove('active'); };
 $('#btnQueue').onclick = () => {
   const p = $('#queuePanel');

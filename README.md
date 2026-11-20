@@ -20,7 +20,8 @@
 
 | 模块 | 说明 |
 | --- | --- |
-| 发现音乐 | Folia 风格首页：左侧竖排导航 + 今日推荐大图 + 快捷入口 + 推荐歌单墙 + 新歌行列表 + 三列榜单 + 新碟 + 每日推荐；**接口层直接过滤广告位** |
+| 界面外壳 | 仿 EchoMusic 2.3.2 的三面板布局：窗口底色 `#171718` + 侧栏 / 主区 / 播放条三块 10px 圆角面板，8px 外边距、10px 缝隙；主色 `#00cc65` |
+| 发现音乐 | 今日推荐大图 + 快捷入口 + 推荐歌单墙 + 新歌行列表 + 三列榜单 + 新碟 + 每日推荐；**接口层直接过滤广告位** |
 | 排行榜 | 5 个官方榜（国风热歌、音乐风向、尖叫新歌、尖叫热歌、尖叫原创），点进去是 100 首榜单详情 |
 | 新歌速递 | 按发行时间分页拉取 |
 | 歌手 | 歌手分类 Tab、歌手详情（粉丝数/歌曲数/专辑数）、专辑列表、热门歌曲 |
@@ -106,6 +107,38 @@ key 表按请求类型分组，常量定义在 `src/main/migu-api.js`（逆向�
   的位置/透明度/模糊一次到位、不跑弹簧，避免大跨度拖动进度后画面滞后一帧。
 
 相关文件：`src/renderer/lattice-lyrics.js`、`lattice-lyrics.css`、`errors.js`。
+
+## 界面外壳（2026-11-20 重构）
+
+整体骨架参考 EchoMusic 2.3.2：**不是"通栏底色 + 分区"，而是三块浮起的面板**。
+
+```
+#app { grid-template-columns: 236px 1fr; gap: 10px; padding: 8px; }
+  ├─ aside.sidebar      → 与窗口同色 #171718，10px 圆角
+  └─ .workspace         → grid-template-rows: 1fr 88px
+       ├─ .main-panel   → #29292b，10px 圆角，内含 .topbar + #view
+       └─ .player-panel → #29292b，10px 圆角，三栏 1fr / 1.25fr / 0.9fr
+```
+
+取色与尺寸直接对应 EchoMusic 的 design tokens（从其 `style-*.css` 提取）：
+
+| 本项目 | EchoMusic 变量 | 值 |
+| --- | --- | --- |
+| `--window-bg` | `--surface-sidebar-base` | `#171718` |
+| `--panel-main` | `--surface-main-base` | `#29292b` |
+| `--panel-card` | `--surface-card-base` | `#343436` |
+| `--panel-border` | `--border-light` | `#444446` |
+| `--brand` | `--color-primary` | `#00cc65` |
+| `--tone-secondary` | `--text-secondary` | `#bcbcbc` |
+| `--r-shell` | `--radius-shell` | `10px` |
+| `--r-control` | `--radius-control` | `6px` |
+| `--gap-panel` / `--edge-inset` | `--layout-panel-gap` / `--layout-edge-inset` | `10px` / `8px` |
+
+窗口改为 `transparent: true` + `roundedCorners: false`，圆角由 CSS 面板自己画，
+否则系统会在无边框透明窗口上再叠一层圆角导致双层。
+
+原本的洋红主色整体换成 Echo 的绿 `#00cc65`；首页内部的 Folia 竖排 rail 已移除
+（侧栏已承担导航），首页只保留内容层。
 
 ## 首页（发现音乐）
 

@@ -59,7 +59,10 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 640,
     frame: false,
-    backgroundColor: '#0f0f16',
+    transparent: true,
+    backgroundColor: '#00000000',
+    roundedCorners: false,
+    hasShadow: true,
     icon: ICON || undefined,
     show: false,
     webPreferences: {
