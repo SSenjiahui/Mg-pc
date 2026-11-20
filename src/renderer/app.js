@@ -39,6 +39,7 @@ const S = {
   pauseStamp: 0,      // 用户最后一次按暂停的时刻（防止降档重取把播放拉起来）
   seekTo: 0,          // 换源后要恢复的播放进度（换音质不该从头开始）
   loadToken: 0,
+  tblOn: false,   // 任务栏歌词开关
 };
 
 /* ─────────────── 工具 ─────────────── */
@@ -570,6 +571,18 @@ function parseLyric(text, mrc) {
   syncLatticeLyric();
 }
 
+/** 任务栏歌词：只在「活动行变化」时推送，避免每帧刷 */
+let __tblLast = '';
+function pushTaskbarLyric() {
+  if (!M.sys || !M.sys.taskbarLyric) return;
+  if (!S.tblOn) return;
+  const i = S.lyricIdx;
+  const line = (i >= 0 && S.lyric[i]) ? String(S.lyric[i].txt || '') : '';
+  if (line === __tblLast) return;
+  __tblLast = line;
+  M.sys.taskbarLyric({ enabled: true, text: line }).catch(() => {});
+}
+
 function syncLyric(t) {
   if (!S.lyric.length) return;
   const lx = LX();
@@ -580,6 +593,7 @@ function syncLyric(t) {
   }
   if (idx === S.lyricIdx) return;
   S.lyricIdx = idx;
+  pushTaskbarLyric();
   const body = $('#lpBody');
   $$('p.cur', body).forEach((p) => p.classList.remove('cur'));
   const p = body.querySelector('p[data-l="' + idx + '"]');
@@ -1750,6 +1764,21 @@ function paintSpeed() {
   if (dot) dot.style.left = (p * 100) + '%';
   if (val) val.textContent = curSpeed.toFixed(2) + '×';
 }
+
+
+/* 任务栏歌词开关 */
+(function bindTaskbarLyric() {
+  const sw = $('#tblSwitch');
+  if (!sw) return;
+  sw.onclick = () => {
+    S.tblOn = !S.tblOn;
+    sw.classList.toggle('is-on', S.tblOn);
+    if (M.sys && M.sys.taskbarLyric) {
+      M.sys.taskbarLyric({ enabled: S.tblOn, text: S.tblOn ? '' : '' }).catch(() => {});
+      if (S.tblOn) __tblLast = '';
+    }
+  };
+})();
 
 /* 面板开关 */
 (function bindSoundPanel() {

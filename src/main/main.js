@@ -292,27 +292,100 @@ ipcMain.handle('sys:mediaTimeline', async (e, tl) => {
   } catch (err) { return { ok: false, error: String(err.message || err) }; }
 });
 
-/** 任务栏歌词：win 的 hwnd 由主进程持有，渲染层只送文本 */
-let tlsSession = null;
-ipcMain.handle('sys:taskbarLyric', async (e, arg) => {
-  if (!platform || typeof platform.TaskbarLyricSession !== 'function') return { ok: false };
+/* ══ 任务栏歌词 ══
+   做法：开一个无边框 transparent + alwaysOnTop 的小窗口，
+   用 setBounds 把它贴在主任务栏的空白处（EchoMusic 用的是 TaskbarLyricSession 的
+   setShape 裁剪，这里用等价方案：窗口本身透明 + 位置吸附），
+   再把当前歌词行推给这个窗口。
+   不再依赖 TaskbarLyricSession.update(int) 的未文档化语义。 */
+let tblWin = null;
+let tblEnabled = false;
+let tblAnchor = 'left';
+let tblMaxWidth = 300;
+let tblTimer = null;
+
+function taskbarGeom() {
+  const { screen } = require('electron');
+  const d = screen.getPrimaryDisplay();
+  const wa = d.workArea;   // 去掉任务栏后的可用区
+  const b = d.bounds;      // 含任务栏
+  const tbH = Math.max(0, b.height - wa.height - (wa.y - b.y));
+  // 任务栏在底部（最常见）；高度取差值，宽度取可用区宽
+  return { barH: tbH || 40, x: wa.x, y: b.y + b.height - (tbH || 40), w: wa.width };
+}
+
+function ensureTaskbarWin() {
+  const { BrowserWindow } = require('electron');
+  if (tblWin && !tblWin.isDestroyed()) return tblWin;
+  const g = taskbarGeom();
+  const w = Math.min(tblMaxWidth, Math.floor(g.w * 0.2));
+  const h = Math.max(20, Math.min(28, g.barH - 4));
+  tblWin = new BrowserWindow({
+    width: w,
+    height: h,
+    x: tblAnchor === 'right' ? g.x + g.w - w - 240 : g.x + 190,
+    y: g.y + Math.round((g.barH - h) / 2),
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    focusable: false,
+    hasShadow: false,
+    show: false,
+    alwaysOnTop: true,
+    webPreferences: { contextIsolation: false, nodeIntegration: false, sandbox: false },
+  });
+  // 压在普通窗口之上但不要盖住全屏应用
+  try { tblWin.setAlwaysOnTop(true, 'screen-saver'); } catch (e) {}
+  try { tblWin.setVisibleOnAllWorkspaces(true); } catch (e) {}
+  tblWin.loadFile(path.join(__dirname, '..', 'renderer', 'taskbar-lyric.html'));
+  tblWin.once('ready-to-show', () => { if (tblEnabled) tblWin.showInactive(); });
+  tblWin.on('closed', () => { tblWin = null; });
+  return tblWin;
+}
+
+function taskbarSetText(text) {
+  if (!tblWin || tblWin.isDestroyed()) return;
   try {
-    if (!win || win.isDestroyed()) return { ok: false, error: 'no window' };
+    tblWin.webContents.executeJavaScript(
+      'window.tblSetText(' + JSON.stringify(String(text || '')) + ')'
+    ).catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+function taskbarSetEnabled(on) {
+  tblEnabled = !!on;
+  if (tblEnabled) {
+    const w = ensureTaskbarWin();
+    if (w && !w.isVisible()) w.showInactive();
+  } else if (tblWin && !tblWin.isDestroyed()) {
+    tblWin.hide();
+  }
+}
+
+/** 渲染层推歌词：{ text, enabled, dark, anchor, maxWidth } */
+ipcMain.handle('sys:taskbarLyric', async (e, arg) => {
+  try {
     const a = arg || {};
-    if (a.enable === false) {
-      if (tlsSession) { try { tlsSession.stop(); } catch (x) {} tlsSession = null; }
-      return { ok: true, enabled: false };
+    if (a.maxWidth) tblMaxWidth = Math.max(120, Math.min(720, Number(a.maxWidth)));
+    if (a.anchor === 'left' || a.anchor === 'right') tblAnchor = a.anchor;
+    if (a.enabled !== undefined) taskbarSetEnabled(a.enabled);
+    if (a.dark !== undefined && tblWin && !tblWin.isDestroyed()) {
+      tblWin.webContents.executeJavaScript('window.tblSetTheme(' + JSON.stringify(!!a.dark) + ')').catch(() => {});
     }
-    if (!tlsSession) {
-      const buf = win.getNativeWindowHandle();
-      const hwnd = buf.length >= 8 ? buf.readBigUInt64LE().toString() : String(buf.readUInt32LE());
-      tlsSession = new platform.TaskbarLyricSession(hwnd, 1, () => {});
-    }
-    // update 只接 i32：1=显示/电平，0=隐藏
-    tlsSession.update(Number(a.level) || 1);
-    return { ok: true, enabled: true };
+    if (a.text !== undefined) taskbarSetText(a.text);
+    return { ok: true, enabled: tblEnabled, window: !!(tblWin && !tblWin.isDestroyed()) };
   } catch (err) { return { ok: false, error: String(err.message || err) }; }
 });
+
+ipcMain.handle('sys:taskbarLyricState', () => ({
+  enabled: tblEnabled,
+  visible: !!(tblWin && !tblWin.isDestroyed() && tblWin.isVisible()),
+}));
 
 /** 本地库（SQLite）：播放历史 / 队列持久化 */
 ipcMain.handle('sys:kvGet', (e, k) => {
